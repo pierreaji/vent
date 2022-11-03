@@ -6,10 +6,14 @@ const cors = require('cors')
 
 const app = express()
 
-const PORT = process.env.PORT || 5000
+//routes
+app.get('/', (req, res) => {
+    res.send('Home Page')
+})
 
 // Connect mongodb and start server
 mongoose
+const PORT = process.env.PORT || 5000
     .connect(process.env.MONGO_URL)
     .then(() => {
         
