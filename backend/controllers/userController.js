@@ -2,6 +2,9 @@ const asyncHandler = require('express-async-handler')
 const User = require('../models/userModel')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const Token = require('../models/tokenModel')
+const crypto = require('crypto')
+const sendEmail = require('../utils/sendEmail')
 
 const generateToken = (id) => {
     return jwt.sign({id}, process.env.JWT_SECRET, {expiresIn: '1d'})
@@ -189,8 +192,55 @@ const changePassword = asyncHandler(async (req, res) => {
     await user.save()
     res.status(200).send('Password has been changed')
   } else {
-    throw new Error('Old password is incorrect')
+    throw new Error('Old password is incorrect ')
   }
+})
+
+const forgotPassword = asyncHandler(async(req, res) => {
+    const {email} = req.body
+    const user = await User.findOne({email})
+
+    if (!user) {
+        res.status(404)
+        throw new Error('User does not exist')
+    }
+
+    //create reset token
+    let resetToken = crypto.randomBytes(32).toString('hex') + user._id
+
+    //hash token
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex')
+
+    // save token
+    await new Token({
+        userId: user._id,
+        token: hashedToken,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 30 * (60*1000)
+    }).save()
+
+    // construct reset url     
+    const resetUrl = `${process.env.FRONTEND_URL}/resetpassword/${resetToken}`
+
+    const message = `
+    <h2>Hello ${user.name}</h2>
+    <p>Please use the url below to reset your password</p>
+    <p>This is link valid for reset your password</p>
+
+    <a href=${resetUrl} clicktracking=off>${resetUrl}</a>
+    <p>Regards..</p>
+    `
+    const subject = 'Password Reset Request'
+    const send_to = user.email
+    const send_from = process.env.EMAIL_USER
+
+    try {
+        await sendEmail(subject, message, send_to, send_from)
+        res.status(200).json({Success: true, message: 'Reset email send'})
+    } catch (error) {
+        res.status(500)
+        throw new Error('email not send, please try again')
+    }
 })
 
 module.exports = {
@@ -201,4 +251,5 @@ module.exports = {
     loginStatus,
     updateUser,
     changePassword,
+    forgotPassword,
 } 
