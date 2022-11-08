@@ -126,7 +126,71 @@ const getUser = asyncHandler(async(req, res) => {
 
 //get login status
 const loginStatus = asyncHandler(async(req, res) => {
-      
+      const token = req.cookies.token
+      if (!token) {
+        return res.json(false)
+      }
+
+      const verified = jwt.verify(token, process.env.JWT_SECRET)
+      if (verified) {
+        return res.json(true)
+      }
+      return res.json(false)
+})
+
+// update user
+const updateUser = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id)
+    if (user) {
+        const {name, email, photos, phone, bio } = user
+        user.email = email,
+        user.name = req.body.name || name
+        user.phone = req.body.phone || phone
+        user.bio = req.body.bio || bio
+        user.photos = req.body.photos || photos
+
+        const updatedUser = await user.save()
+        res.status(200).json({
+            _id: updatedUser._id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            photos: updatedUser.photos,
+            phone: updatedUser.phone,
+            bio: updatedUser.bio 
+        })
+    } else {
+        res.status(404)
+        throw new Error('User not found')
+    }
+})
+
+// change password
+const changePassword = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id)
+  const {oldPassword, password} = req.body
+
+  if (!user) {
+    res.status(400)
+    throw new Error('User not found, plase signup')
+  }
+
+  //validate
+  if (!oldPassword || !password) {
+    res.status(400)
+    throw new Error('Please add old and new password')
+  }
+
+  //check if password match
+  const passwordIsCorrect = await bcrypt.compare(oldPassword, user.password)
+
+  //save new password
+  if (user && passwordIsCorrect) {
+    user.password = password
+    await user.save()
+    res.status(200).send('Password has been changed')
+  } else {
+    throw new Error('Old password is incorrect')
+  }
 })
 
 module.exports = {
@@ -134,5 +198,7 @@ module.exports = {
     loginUser,
     logout,
     getUser,
-    loginStatus
+    loginStatus,
+    updateUser,
+    changePassword,
 } 
